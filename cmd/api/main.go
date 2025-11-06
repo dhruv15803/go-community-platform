@@ -139,6 +139,7 @@ func main() {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
+
 	r.Route("/api", func(r chi.Router) {
 
 		r.Get("/health", handler.HealthCheckHandler)
@@ -171,6 +172,13 @@ func main() {
 			r.Post("/", handler.CreateTopicPreferencesHandler) // add topics[] as authenticated user preference
 			r.Delete("/{topicId}", handler.DeleteTopicPreferenceHandler)
 			r.Get("/", handler.GetTopicPreferencesHandler)
+		})
+
+		r.Route("/communities", func(r chi.Router) {
+			r.Use(handler.AuthMiddleware)
+			r.Post("/", handler.CreateCommunityHandler)
+			r.Post("/{communityId}/join", handler.ToggleJoinCommunityHandler)
+			// join community route
 		})
 
 	})

@@ -231,7 +231,7 @@ func (h *Handler) GetTopicPreferencesHandler(w http.ResponseWriter, r *http.Requ
 
 	// get topics preferred by this user (no pagination required as a user's preffered topics will be capped to lets say 5 or 10 at all times)
 
-	topics, err := h.storage.TopicQueryRepository.GetTopicsPrefferedByUser(user.Id)
+	topics, err := h.storage.TopicQueries.GetTopicsPrefferedByUser(user.Id)
 	if err != nil {
 		log.Printf("failed to get preffered topics: %v\n", err)
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)

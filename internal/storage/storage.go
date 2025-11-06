@@ -10,7 +10,8 @@ type Storage struct {
 	Users                UserRepository
 	Topics               TopicRepository
 	UserTopicPreferences TopicPreferenceRepository
-	TopicQueryRepository TopicQueryRepository
+	TopicQueries         TopicQueryRepository
+	Communities          CommunityRepository
 }
 
 func NewStorage(db *sqlx.DB) *Storage {
@@ -18,7 +19,8 @@ func NewStorage(db *sqlx.DB) *Storage {
 		Users:                NewUserRepo(db),
 		Topics:               NewTopicRepo(db),
 		UserTopicPreferences: NewTopicPreferenceRepo(db),
-		TopicQueryRepository: NewTopicQueryRepo(db),
+		TopicQueries:         NewTopicQueryRepo(db),
+		Communities:          NewCommunityRepo(db),
 	}
 }
 
@@ -51,4 +53,13 @@ type TopicPreferenceRepository interface {
 
 type TopicQueryRepository interface {
 	GetTopicsPrefferedByUser(userId int) ([]Topic, error)
+}
+
+type CommunityRepository interface {
+	GetCommunityByName(communityName string) (*Community, error)
+	CreateCommunityWithTopics(communityName string, communityDescription string, communityImage string, communityOwnerId int, communityTopicIds []int) (*CommunityWithTopics, error)
+	GetCommunityById(communityId int) (*Community, error)
+	CheckCommunityForUser(userId int, communityId int) (bool, error)
+	JoinCommunity(userId int, communityId int) (*UserCommunity, error)
+	LeaveCommunity(userId int, communityId int) error
 }
