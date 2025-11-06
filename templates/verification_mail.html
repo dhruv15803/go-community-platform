@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ .Subject }}</title>
+</head>
+<body>
+
+    <div>
+        <h1>Welcome to Community {{ .Email }} </h1>
+        <p>If this is your attempt to sign up on our platform</p>
+        <p>please click the verification link: <a href="{{ .VerificationUrl }}">Click here</a></p>
+    </div>
+</body>
+</html>
