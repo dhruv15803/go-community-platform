@@ -100,7 +100,7 @@ func main() {
 
 		result, err := rdb.BRPop(context.Background(), 0, "queue:email").Result()
 		if err != nil {
-			log.Fatalf("Error retrieving queue element: %v\n", err)
+			log.Printf("Error retrieving queue element: %v\n", err)
 			continue
 		}
 		var verificationMailJob VerificationMailJob
@@ -124,6 +124,7 @@ func main() {
 		}
 
 		if !isEmailSent {
+
 			log.Printf("Error sending verification mail, attempt %d : %v\n", maxEmailRetries, err)
 
 			type VerificationMailJobFailureDetail struct {
@@ -143,7 +144,8 @@ func main() {
 			jobFailureJson, _ := json.Marshal(jobFailure)
 			_ = rdb.LPush(context.Background(), "queue:email:dlq", string(jobFailureJson)).Err()
 
-			return
+			continue
+
 		}
 
 		log.Printf("Email sent successfully to %s\n", verificationMailJob.ToEmail)

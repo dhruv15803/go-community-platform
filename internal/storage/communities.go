@@ -160,3 +160,49 @@ func (c *CommunityRepo) CheckCommunityForUser(userId int, communityId int) (bool
 
 	return true, nil
 }
+
+func (c *CommunityRepo) GetCommunityMembers(communityId int, offset int, limit int) ([]User, error) {
+
+	var members []User
+
+	query := `SELECT id, email, password, username, is_verified, role, user_image, bio, location, date_of_birth, verified_at, created_at, updated_at 
+	FROM users WHERE id IN (
+		SELECT user_id FROM user_communities 
+		WHERE community_id=$1 
+		ORDER BY joined_at DESC
+		LIMIT $2 OFFSET $3
+	)`
+
+	rows, err := c.db.Queryx(query, communityId, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+
+		var member User
+
+		if err := rows.StructScan(&member); err != nil {
+			return nil, err
+		}
+
+		members = append(members, member)
+	}
+
+	return members, nil
+}
+
+func (c *CommunityRepo) GetTotalCommunityMembersCount(communityId int) (int, error) {
+
+	var totalMembersCount int
+
+	query := `SELECT COUNT(user_id) FROM user_communities WHERE community_id=$1`
+
+	if err := c.db.QueryRow(query, communityId).Scan(&totalMembersCount); err != nil {
+		return -1, err
+	}
+
+	return totalMembersCount, nil
+
+}

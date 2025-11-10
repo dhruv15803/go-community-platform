@@ -6,12 +6,22 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type SortByStr string
+
+const (
+	SortByNewest    SortByStr = "new"
+	SortByTop       SortByStr = "top" // sort posts by top post likes
+	SortByRelevance SortByStr = "hot" // posts that are 'hot'
+)
+
 type Storage struct {
 	Users                UserRepository
 	Topics               TopicRepository
 	UserTopicPreferences TopicPreferenceRepository
 	TopicQueries         TopicQueryRepository
 	Communities          CommunityRepository
+	Posts                PostRepository
+	PostComments         PostCommentRepository
 }
 
 func NewStorage(db *sqlx.DB) *Storage {
@@ -21,6 +31,8 @@ func NewStorage(db *sqlx.DB) *Storage {
 		UserTopicPreferences: NewTopicPreferenceRepo(db),
 		TopicQueries:         NewTopicQueryRepo(db),
 		Communities:          NewCommunityRepo(db),
+		Posts:                NewPostRepo(db),
+		PostComments:         NewPostCommentRepo(db),
 	}
 }
 
@@ -62,4 +74,35 @@ type CommunityRepository interface {
 	CheckCommunityForUser(userId int, communityId int) (bool, error)
 	JoinCommunity(userId int, communityId int) (*UserCommunity, error)
 	LeaveCommunity(userId int, communityId int) error
+	GetCommunityMembers(communityId int, offset int, limit int) ([]User, error)
+	GetTotalCommunityMembersCount(communityId int) (int, error)
+}
+
+type PostRepository interface {
+	CreatePost(postTitle string, postContent string, postOwnerId int, postCommunityId int) (*Post, error)
+	CreatePostWithImages(postTitle string, postContent string, postOwnerId int, postCommunityId int, postImageUrls []string) (*PostWithImages, error)
+	GetPostById(id int) (*Post, error)
+	DeletePostById(id int) error
+	CheckPostLike(userId int, postId int) (bool, error)
+	CreatePostLike(userId int, postId int) (*PostLike, error)
+	RemovePostLike(userId int, postId int) error
+	CheckPostBookmark(userId int, postId int) (bool, error)
+	CreatePostBookmark(userId int, postId int) (*PostBookmark, error)
+	RemovePostBookmark(userId int, postId int) error
+	GetCommunityPosts(communityId int, skip int, limit int, sortBy SortByStr, search string) ([]PostWithMetaData, error)
+	GetCommunityPostsCount(communityId int, search string) (int, error)
+}
+
+type PostCommentRepository interface {
+	DeletePostCommentById(id int) error
+	GetPostCommentById(id int) (*PostComment, error)
+	CreatePostComment(commentContent string, commentOwnerId int, postId int) (*PostComment, error)
+	CreateChildPostComment(commentContent string, commentOwnerId int, postId int, parentCommentId int) (*PostComment, error)
+	CheckCommentLike(userId int, commentId int) (bool, error)
+	CreateCommentLike(userId int, commentId int) (*PostCommentLike, error)
+	RemoveCommentLike(userId int, commentId int) error
+	GetPostComments(postId int, offset int, limit int) ([]PostCommentWithMetaData, error)
+	GetPostCommentsCount(postId int) (int, error)
+	GetCommentReplies(commentId int, offset int, limit int) ([]PostCommentWithMetaData, error)
+	GetCommentRepliesCount(commentId int) (int, error)
 }

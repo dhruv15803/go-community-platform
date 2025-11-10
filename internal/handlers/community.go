@@ -4,11 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/dhruv15803/go-community-platform/internal/storage"
-	"github.com/go-chi/chi/v5"
+	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/dhruv15803/go-community-platform/internal/storage"
+	"github.com/go-chi/chi/v5"
 )
 
 type CreateCommunityRequest struct {
@@ -211,6 +214,103 @@ func (h *Handler) ToggleJoinCommunityHandler(w http.ResponseWriter, r *http.Requ
 			writeJSONError(w, "internal server error", http.StatusInternalServerError)
 
 		}
+
+	}
+}
+
+// who can access this community members list (owner) || (member)
+func (h *Handler) GetCommunityMembersHandler(w http.ResponseWriter, r *http.Request) {
+
+	userId, ok := r.Context().Value(AuthUserId).(int)
+	if !ok {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := h.storage.Users.GetUserById(userId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "user not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	communityId, err := strconv.Atoi(chi.URLParam(r, "communityId"))
+	if err != nil {
+		writeJSONError(w, "invalid request param communityId", http.StatusBadRequest)
+		return
+	}
+
+	community, err := h.storage.Communities.GetCommunityById(communityId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "community not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+	var page int
+	var limit int
+	if r.URL.Query().Get("page") == "" {
+		page = 1
+	} else {
+		page, err = strconv.Atoi(r.URL.Query().Get("page"))
+		if err != nil {
+			writeJSONError(w, "invalid query param page", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if r.URL.Query().Get("limit") == "" {
+		limit = 10
+	} else {
+		limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			writeJSONError(w, "invalid query param limit", http.StatusBadRequest)
+			return
+		}
+	}
+
+	skip := page*limit - limit
+
+	isPartOfCommunity, _ := h.storage.Communities.CheckCommunityForUser(user.Id, community.Id)
+	if user.Id != community.CommunityOwnerId && !isPartOfCommunity {
+		writeJSONError(w, "cannot view community members", http.StatusForbidden)
+		return
+	}
+
+	members, err := h.storage.Communities.GetCommunityMembers(community.Id, skip, limit)
+	if err != nil {
+		log.Printf("failed to get community members: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+
+	}
+
+	totalMembersCount, err := h.storage.Communities.GetTotalCommunityMembersCount(community.Id)
+	if err != nil {
+		log.Printf("failed to get total community members count: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+
+	}
+
+	noOfPages := math.Ceil(float64(totalMembersCount) / float64(limit))
+
+	type Response struct {
+		Success   bool           `json:"success"`
+		Members   []storage.User `json:"members"`
+		NoOfPages int            `json:"no_of_pages"`
+	}
+
+	if err := writeJSON(w, Response{Success: true, Members: members, NoOfPages: int(noOfPages)}, http.StatusOK); err != nil {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
 
 	}
 }

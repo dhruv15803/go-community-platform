@@ -175,10 +175,58 @@ func main() {
 		})
 
 		r.Route("/communities", func(r chi.Router) {
-			r.Use(handler.AuthMiddleware)
-			r.Post("/", handler.CreateCommunityHandler)
-			r.Post("/{communityId}/join", handler.ToggleJoinCommunityHandler)
+
+			r.Group(func(r chi.Router) {
+				r.Use(handler.AuthMiddleware)
+				r.Post("/", handler.CreateCommunityHandler)
+				r.Post("/{communityId}/join", handler.ToggleJoinCommunityHandler)
+				r.Get("/{communityId}/members", handler.GetCommunityMembersHandler)
+			})
 			// join community route
+			r.Route("/{communityId}/posts", func(r chi.Router) {
+
+				r.Get("/", handler.GetCommunityPostsHandler)
+
+				r.Group(func(r chi.Router) {
+					r.Use(handler.AuthMiddleware)
+					r.Post("/", handler.CreateCommunityPostHandler) // create a post in community
+				})
+			})
+
+		})
+
+		r.Route("/posts", func(r chi.Router) {
+
+			r.Group(func(r chi.Router) {
+
+				r.Route("/{postId}", func(r chi.Router) {
+
+					r.Group(func(r chi.Router) {
+						r.Use(handler.AuthMiddleware)
+						r.Delete("/", handler.DeleteCommunityPostHandler)
+						r.Post("/like", handler.TogglePostLikeHandler)
+						r.Post("/bookmark", handler.TogglePostBookmarkHandler)
+					})
+
+					r.Route("/comments", func(r chi.Router) {
+						r.Get("/", handler.GetPostCommentsHandler)
+						r.Get("/{commentId}/replies", handler.GetCommentRepliesHandler)
+						r.Group(func(r chi.Router) {
+							r.Use(handler.AuthMiddleware)
+							r.Post("/", handler.CreatePostCommentHandler)
+							r.Delete("/{commentId}", handler.DeletePostCommentHandler)
+						})
+					})
+				})
+			})
+		})
+
+		r.Route("/comments", func(r chi.Router) {
+
+			r.Use(handler.AuthMiddleware)
+			r.Delete("/{commentId}", handler.DeletePostCommentHandler)
+			r.Post("/{commentId}/like", handler.ToggleCommentLikeHandler)
+
 		})
 
 	})
