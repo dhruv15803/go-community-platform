@@ -145,7 +145,6 @@ func main() {
 			_ = rdb.LPush(context.Background(), "queue:email:dlq", string(jobFailureJson)).Err()
 
 			continue
-
 		}
 
 		log.Printf("Email sent successfully to %s\n", verificationMailJob.ToEmail)

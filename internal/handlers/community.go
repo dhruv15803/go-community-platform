@@ -314,3 +314,118 @@ func (h *Handler) GetCommunityMembersHandler(w http.ResponseWriter, r *http.Requ
 
 	}
 }
+
+func (h *Handler) GetCommunityHandler(w http.ResponseWriter, r *http.Request) {
+
+	communityId, err := strconv.Atoi(chi.URLParam(r, "communityId"))
+	if err != nil {
+		writeJSONError(w, "invalid request param communityId", http.StatusBadRequest)
+		return
+	}
+
+	community, err := h.storage.Communities.GetCommunityById(communityId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "community not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	//	 get community & its metadata (no of members, owner, no of posts, etc)
+
+	communityProfile, err := h.storage.Communities.GetCommunityProfile(community.Id)
+	if err != nil {
+		log.Printf("failed to get communities profile: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	type Response struct {
+		Success   bool                          `json:"success"`
+		Community storage.CommunityWithMetaData `json:"community"`
+	}
+
+	if err := writeJSON(w, Response{Success: true, Community: *communityProfile}, http.StatusOK); err != nil {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+
+	}
+}
+
+func (h *Handler) GetRecommendedCommunitiesHandler(w http.ResponseWriter, r *http.Request) {
+
+	userId, ok := r.Context().Value(AuthUserId).(int)
+	if !ok {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := h.storage.Users.GetUserById(userId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "user not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	var page int
+	var limit int
+
+	if r.URL.Query().Get("page") == "" {
+		page = 1
+	} else {
+		page, err = strconv.Atoi(r.URL.Query().Get("page"))
+		if err != nil {
+			writeJSONError(w, "invalid query param page", http.StatusBadRequest)
+			return
+		}
+	}
+	if r.URL.Query().Get("limit") == "" {
+		limit = 10
+	} else {
+		limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			writeJSONError(w, "invalid query param limit", http.StatusBadRequest)
+			return
+		}
+	}
+
+	skip := page*limit - limit
+
+	// get recommended commmunities for user
+	// by using user's topic preferences
+	// this user has topic preferences,
+	// get communities that has a topic that the user prefers
+	// order them by no of members
+
+	communities, err := h.storage.Communities.GetRecommendedCommunitiesForUser(user.Id, skip, limit)
+	if err != nil {
+		log.Printf("failed to get recommended communities: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	totalCount, err := h.storage.Communities.GetRecommendCommunitiesForUserCount(user.Id)
+	if err != nil {
+		log.Printf("failed to get recommended communities count: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	noOfPages := int(math.Ceil(float64(totalCount) / float64(limit)))
+
+	type Response struct {
+		Success     bool                            `json:"success"`
+		Communities []storage.CommunityWithMetaData `json:"communities"`
+		NoOfPagaes  int                             `json:"no_of_pagaes"`
+	}
+
+	if err := writeJSON(w, Response{Success: true, Communities: communities, NoOfPagaes: noOfPages}, http.StatusOK); err != nil {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+	}
+}

@@ -176,19 +176,25 @@ func main() {
 
 		r.Route("/communities", func(r chi.Router) {
 
+			r.Get("/{communityId}", handler.GetCommunityHandler)
+
 			r.Group(func(r chi.Router) {
 				r.Use(handler.AuthMiddleware)
+				r.Get("/recommended", handler.GetRecommendedCommunitiesHandler)
 				r.Post("/", handler.CreateCommunityHandler)
 				r.Post("/{communityId}/join", handler.ToggleJoinCommunityHandler)
 				r.Get("/{communityId}/members", handler.GetCommunityMembersHandler)
 			})
+
 			// join community route
+
 			r.Route("/{communityId}/posts", func(r chi.Router) {
 
 				r.Get("/", handler.GetCommunityPostsHandler)
 
 				r.Group(func(r chi.Router) {
 					r.Use(handler.AuthMiddleware)
+					r.Delete("/{postId}", handler.DeleteCommunityPostHandler)
 					r.Post("/", handler.CreateCommunityPostHandler) // create a post in community
 				})
 			})
@@ -203,7 +209,6 @@ func main() {
 
 					r.Group(func(r chi.Router) {
 						r.Use(handler.AuthMiddleware)
-						r.Delete("/", handler.DeleteCommunityPostHandler)
 						r.Post("/like", handler.TogglePostLikeHandler)
 						r.Post("/bookmark", handler.TogglePostBookmarkHandler)
 					})
@@ -215,6 +220,7 @@ func main() {
 							r.Use(handler.AuthMiddleware)
 							r.Post("/", handler.CreatePostCommentHandler)
 							r.Delete("/{commentId}", handler.DeletePostCommentHandler)
+
 						})
 					})
 				})
@@ -222,11 +228,9 @@ func main() {
 		})
 
 		r.Route("/comments", func(r chi.Router) {
-
 			r.Use(handler.AuthMiddleware)
 			r.Delete("/{commentId}", handler.DeletePostCommentHandler)
 			r.Post("/{commentId}/like", handler.ToggleCommentLikeHandler)
-
 		})
 
 	})
@@ -241,4 +245,5 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Error starting server: %v\n", err)
 	}
+
 }

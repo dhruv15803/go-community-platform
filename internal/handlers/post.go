@@ -142,6 +142,23 @@ func (h *Handler) DeleteCommunityPostHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	communityId, err := strconv.Atoi(chi.URLParam(r, "communityId"))
+	if err != nil {
+		writeJSONError(w, "invalid request param communityId", http.StatusBadRequest)
+		return
+	}
+
+	community, err := h.storage.Communities.GetCommunityById(communityId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "community not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	postId, err := strconv.Atoi(chi.URLParam(r, "postId"))
 	if err != nil {
 		writeJSONError(w, "invalid request param postId", http.StatusBadRequest)
@@ -159,8 +176,15 @@ func (h *Handler) DeleteCommunityPostHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	if user.Id != post.PostOwnerId {
-		writeJSONError(w, "user cannot delete post", http.StatusUnauthorized)
+	// post has to be part of community , if yes then delete only if the user is community owner or post owner
+
+	if post.PostCommunityId != community.Id {
+		writeJSONError(w, "post is not part of community", http.StatusBadRequest)
+		return
+	}
+
+	if user.Id != post.PostOwnerId && user.Id != community.CommunityOwnerId {
+		writeJSONError(w, "user unauthorized to delete community post", http.StatusForbidden)
 		return
 	}
 

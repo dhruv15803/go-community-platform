@@ -374,7 +374,9 @@ func (p *PostRepo) GetCommunityPosts(communityId int, skip int, limit int, sortB
 		var activityScore float64
 		var postImages []PostImage
 
-		if err := rows.Scan(&postWithMetaData.Id, &postWithMetaData.PostTitle, &postWithMetaData.PostContent,
+		if err := rows.Scan(
+
+			&postWithMetaData.Id, &postWithMetaData.PostTitle, &postWithMetaData.PostContent,
 			&postWithMetaData.PostOwnerId, &postWithMetaData.PostCommunityId, &postWithMetaData.PostCreatedAt,
 			&postWithMetaData.PostUpdatedAt, &postWithMetaData.PostOwner.Id, &postWithMetaData.PostOwner.Email,
 			&postWithMetaData.PostOwner.Password, &postWithMetaData.PostOwner.Username, &postWithMetaData.PostOwner.IsVerified,
@@ -382,7 +384,9 @@ func (p *PostRepo) GetCommunityPosts(communityId int, skip int, limit int, sortB
 			&postWithMetaData.PostOwner.Location, &postWithMetaData.PostOwner.DateOfBirth, &postWithMetaData.PostOwner.VerifiedAt,
 			&postWithMetaData.PostOwner.CreatedAt, &postWithMetaData.PostOwner.UpdatedAt, &postWithMetaData.PostLikesCount,
 			&postWithMetaData.PostCommentsCount, &postWithMetaData.PostBookmarksCount, &activityScore); err != nil {
+
 			return nil, err
+
 		}
 
 		// a post has many images

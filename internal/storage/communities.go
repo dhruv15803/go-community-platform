@@ -1,6 +1,8 @@
 package storage
 
-import "github.com/jmoiron/sqlx"
+import (
+	"github.com/jmoiron/sqlx"
+)
 
 type Community struct {
 	Id                   int     `db:"id" json:"id"`
@@ -26,6 +28,12 @@ type UserCommunity struct {
 type CommunityWithTopics struct {
 	Community
 	CommunityTopics []Topic `json:"community_topics"`
+}
+
+type CommunityWithMetaData struct {
+	CommunityWithTopics
+	CommunityOwner        User `json:"community_owner"`
+	CommunityMembersCount int  `json:"community_members_count"`
 }
 
 type CommunityRepo struct {
@@ -205,4 +213,142 @@ func (c *CommunityRepo) GetTotalCommunityMembersCount(communityId int) (int, err
 
 	return totalMembersCount, nil
 
+}
+
+func (c *CommunityRepo) GetCommunityProfile(communityId int) (*CommunityWithMetaData, error) {
+
+	var community CommunityWithMetaData
+	var communityTopics []Topic
+	var totalCommunityMembersCount int
+
+	query := `SELECT c.id, community_name, community_description, community_image, community_owner_id, community_created_at, community_updated_at,
+       u.id, email, password, username, is_verified, role, user_image, bio, location, date_of_birth, verified_at, created_at, updated_at
+	FROM communities AS c INNER JOIN users AS u ON c.community_owner_id=u.id WHERE c.id=$1`
+
+	if err := c.db.QueryRowx(query, communityId).Scan(&community.Id, &community.CommunityName, &community.CommunityDescription,
+		&community.CommunityImage, &community.CommunityOwnerId, &community.CommunityCreatedAt, &community.CommunityUpdatedAt,
+		&community.CommunityOwner.Id, &community.CommunityOwner.Email, &community.CommunityOwner.Password, &community.CommunityOwner.Username,
+		&community.CommunityOwner.IsVerified, &community.CommunityOwner.Role, &community.CommunityOwner.UserImage, &community.CommunityOwner.Bio,
+		&community.CommunityOwner.Location, &community.CommunityOwner.DateOfBirth, &community.CommunityOwner.VerifiedAt, &community.CommunityOwner.CreatedAt,
+		&community.CommunityOwner.UpdatedAt); err != nil {
+		return nil, err
+	}
+
+	// community topics and members count
+
+	topicsQuery := `SELECT id, topic_name 
+	FROM topics WHERE id IN (SELECT topic_id FROM community_topics WHERE community_id=$1)`
+
+	topicRows, err := c.db.Queryx(topicsQuery, communityId)
+	if err != nil {
+		return nil, err
+	}
+	defer topicRows.Close()
+
+	for topicRows.Next() {
+
+		var topic Topic
+
+		if err := topicRows.StructScan(&topic); err != nil {
+			return nil, err
+		}
+
+		communityTopics = append(communityTopics, topic)
+	}
+
+	communityMembersCountQuery := `SELECT COUNT(user_id) FROM user_communities WHERE community_id=$1`
+
+	if err := c.db.QueryRowx(communityMembersCountQuery, communityId).Scan(&totalCommunityMembersCount); err != nil {
+		return nil, err
+	}
+
+	community.CommunityTopics = communityTopics
+	community.CommunityMembersCount = totalCommunityMembersCount
+
+	return &community, nil
+}
+
+func (c *CommunityRepo) GetRecommendedCommunitiesForUser(userId int, offset int, limit int) ([]CommunityWithMetaData, error) {
+
+	var communities []CommunityWithMetaData
+
+	query := `SELECT c.id, community_name, community_description, community_image, community_owner_id, community_created_at, community_updated_at,
+       u.id, email, password, username, is_verified, role, user_image, bio, location, date_of_birth, verified_at, created_at, updated_at,
+       COUNT(uc.user_id) AS members_count
+	FROM communities AS c INNER JOIN users AS u ON c.community_owner_id=u.id   
+    LEFT JOIN user_communities AS uc ON c.id = uc.community_id
+  	WHERE c.id IN (
+    SELECT DISTINCT(community_id) FROM community_topics WHERE topic_id IN (
+    	SELECT topic_id FROM user_topic_preferences WHERE user_id=$1
+	)) 
+  GROUP BY c.id , u.id
+  ORDER BY members_count DESC
+  LIMIT $2 OFFSET $3`
+
+	rows, err := c.db.Queryx(query, userId, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+
+		var community CommunityWithMetaData
+
+		if err := rows.Scan(&community.Id, &community.CommunityName, &community.CommunityDescription,
+			&community.CommunityImage, &community.CommunityOwnerId, &community.CommunityCreatedAt,
+			&community.CommunityUpdatedAt, &community.CommunityOwner.Id, &community.CommunityOwner.Email,
+			&community.CommunityOwner.Password, &community.CommunityOwner.Username, &community.CommunityOwner.IsVerified,
+			&community.CommunityOwner.Role, &community.CommunityOwner.UserImage, &community.CommunityOwner.Bio,
+			&community.CommunityOwner.Location, &community.CommunityOwner.DateOfBirth, &community.CommunityOwner.VerifiedAt,
+			&community.CommunityOwner.CreatedAt, &community.CommunityOwner.UpdatedAt, &community.CommunityMembersCount); err != nil {
+			return nil, err
+		}
+
+		// get community topics
+
+		var communityTopics []Topic
+
+		topicsQuery := `SELECT id, topic_name FROM topics WHERE id IN (
+    		SELECT topic_id FROM community_topics WHERE community_id=$1
+		)`
+
+		topicRows, err := c.db.Queryx(topicsQuery, community.Id)
+		if err != nil {
+			return nil, err
+		}
+		defer topicRows.Close()
+
+		for topicRows.Next() {
+
+			var topic Topic
+
+			if err := topicRows.StructScan(&topic); err != nil {
+				return nil, err
+			}
+
+			communityTopics = append(communityTopics, topic)
+		}
+
+		community.CommunityTopics = communityTopics
+
+		communities = append(communities, community)
+	}
+
+	return communities, nil
+}
+
+func (c *CommunityRepo) GetRecommendCommunitiesForUserCount(userId int) (int, error) {
+
+	var totalRecommendedCommunitiesCount int
+
+	query := `SELECT COUNT(DISTINCT(community_id)) FROM community_topics WHERE topic_id IN (
+    	SELECT topic_id FROM user_topic_preferences WHERE user_id=$1
+	)`
+
+	if err := c.db.QueryRowx(query, userId).Scan(&totalRecommendedCommunitiesCount); err != nil {
+		return -1, err
+	}
+
+	return totalRecommendedCommunitiesCount, nil
 }

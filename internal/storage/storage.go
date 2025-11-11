@@ -76,6 +76,9 @@ type CommunityRepository interface {
 	LeaveCommunity(userId int, communityId int) error
 	GetCommunityMembers(communityId int, offset int, limit int) ([]User, error)
 	GetTotalCommunityMembersCount(communityId int) (int, error)
+	GetCommunityProfile(communityId int) (*CommunityWithMetaData, error)
+	GetRecommendedCommunitiesForUser(userId int, offset int, limit int) ([]CommunityWithMetaData, error)
+	GetRecommendCommunitiesForUserCount(userId int) (int, error)
 }
 
 type PostRepository interface {
