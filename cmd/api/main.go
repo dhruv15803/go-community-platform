@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/dhruv15803/go-community-platform/internal/s3"
 	"log"
 	"net/http"
 	"os"
@@ -133,8 +134,13 @@ func main() {
 	log.Println("connected to redis")
 	defer rdb.Close()
 
+	s3Client, err := s3.NewS3().NewClient()
+	if err != nil {
+		log.Fatalf("Error connecting to s3: %v\n", err)
+	}
+
 	storage := storage.NewStorage(db)
-	handler := handlers.NewHandler(storage, rdb)
+	handler := handlers.NewHandler(storage, rdb, s3Client)
 
 	r := chi.NewRouter()
 
@@ -143,6 +149,11 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 
 		r.Get("/health", handler.HealthCheckHandler)
+
+		r.Route("/file", func(r chi.Router) {
+			r.Use(handler.AuthMiddleware)
+			r.Post("/upload", handler.UserImageFileUploadHandler)
+		})
 
 		r.Route("/auth", func(r chi.Router) {
 
@@ -168,10 +179,12 @@ func main() {
 		})
 
 		r.Route("/topic-preferences", func(r chi.Router) {
+
 			r.Use(handler.AuthMiddleware)
 			r.Post("/", handler.CreateTopicPreferencesHandler) // add topics[] as authenticated user preference
 			r.Delete("/{topicId}", handler.DeleteTopicPreferenceHandler)
 			r.Get("/", handler.GetTopicPreferencesHandler)
+
 		})
 
 		r.Route("/communities", func(r chi.Router) {
@@ -197,11 +210,14 @@ func main() {
 					r.Delete("/{postId}", handler.DeleteCommunityPostHandler)
 					r.Post("/", handler.CreateCommunityPostHandler) // create a post in community
 				})
+
 			})
 
 		})
 
 		r.Route("/posts", func(r chi.Router) {
+
+			r.With(handler.AuthMiddleware).Get("/feed", handler.GetPostsFeedHandler)
 
 			r.Group(func(r chi.Router) {
 
@@ -220,7 +236,6 @@ func main() {
 							r.Use(handler.AuthMiddleware)
 							r.Post("/", handler.CreatePostCommentHandler)
 							r.Delete("/{commentId}", handler.DeletePostCommentHandler)
-
 						})
 					})
 				})

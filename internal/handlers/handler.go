@@ -2,20 +2,23 @@ package handlers
 
 import (
 	"encoding/json"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/dhruv15803/go-community-platform/internal/storage"
 	"github.com/redis/go-redis/v9"
 	"net/http"
 )
 
 type Handler struct {
-	storage *storage.Storage
-	rdb     *redis.Client
+	storage  *storage.Storage
+	rdb      *redis.Client
+	s3Client *s3.Client
 }
 
-func NewHandler(storage *storage.Storage, rdb *redis.Client) *Handler {
+func NewHandler(storage *storage.Storage, rdb *redis.Client, s3Client *s3.Client) *Handler {
 	return &Handler{
-		storage: storage,
-		rdb:     rdb,
+		storage:  storage,
+		rdb:      rdb,
+		s3Client: s3Client,
 	}
 }
 
