@@ -606,3 +606,163 @@ func (p *PostRepo) GetUserPostsFeedCount(userId int, n int) (int, error) {
 
 	return totalCount, nil
 }
+
+func (p *PostRepo) GetPostsFeed(n int, skip int, limit int, sortBy SortByStr) ([]PostWithMetaData, error) {
+
+	var posts []PostWithMetaData
+	var query string
+
+	baseQuery := `
+      SELECT p.id,p.post_title,p.post_content,p.post_owner_id,
+  p.post_community_id,p.post_created_at,p.post_updated_at,
+  u.id,u.email,u.password,u.username,u.is_verified,u.role,
+  u.user_image,u.bio,u.location,u.date_of_birth,u.verified_at,
+  u.created_at,u.updated_at,
+  COUNT(DISTINCT(pl.liked_by_id)) AS post_likes_count,
+  COUNT(DISTINCT(pc.id)) AS post_comments_count,
+  COUNT(DISTINCT(pb.bookmarked_by_id)) AS post_bookmarks_count, 
+  0.0 AS activity_score
+      FROM posts 
+AS p INNER JOIN users AS u ON p.post_owner_id=u.id
+LEFT JOIN post_likes AS pl ON p.id = pl.liked_post_id
+LEFT JOIN post_comments AS pc ON p.id = pc.post_id
+LEFT JOIN post_bookmarks AS pb ON p.id = pb.bookmarked_post_id
+  WHERE post_community_id IN (
+  SELECT community_id
+  FROM (
+    SELECT uc.community_id, COUNT(DISTINCT(uc.user_id)) AS members_count 
+    FROM user_communities AS uc
+    GROUP BY uc.community_id
+    ORDER BY members_count DESC
+    LIMIT $1 OFFSET 0
+  )
+)
+AND pc.parent_comment_id IS NULL
+GROUP BY p.id,u.id`
+
+	if sortBy == SortByTop {
+
+		query = fmt.Sprintf("%s\nORDER BY post_likes_count DESC\nLIMIT $2 OFFSET $3", baseQuery)
+
+	} else if sortBy == SortByNewest {
+
+		query = fmt.Sprintf("%s\nORDER BY p.post_created_at DESC\nLIMIT $2 OFFSET $3", baseQuery)
+
+	} else if sortBy == SortByRelevance {
+
+		baseQuery = `SELECT p.id,p.post_title,p.post_content,p.post_owner_id,
+  p.post_community_id,p.post_created_at,p.post_updated_at,
+  u.id,u.email,u.password,u.username,u.is_verified,u.role,
+  u.user_image,u.bio,u.location,u.date_of_birth,u.verified_at,
+  u.created_at,u.updated_at,
+  COUNT(DISTINCT(pl.liked_by_id)) AS post_likes_count,
+  COUNT(DISTINCT(pc.id)) AS post_comments_count,
+  COUNT(DISTINCT(pb.bookmarked_by_id)) AS post_bookmarks_count FROM posts 
+AS p INNER JOIN users AS u ON p.post_owner_id=u.id
+LEFT JOIN post_likes AS pl ON p.id = pl.liked_post_id
+LEFT JOIN post_comments AS pc ON p.id = pc.post_id
+LEFT JOIN post_bookmarks AS pb ON p.id = pb.bookmarked_post_id
+  WHERE post_community_id IN (
+  SELECT community_id
+  FROM (
+    SELECT uc.community_id, COUNT(DISTINCT(uc.user_id)) AS members_count 
+    FROM user_communities AS uc
+    GROUP BY uc.community_id
+    ORDER BY members_count DESC
+    LIMIT $1 OFFSET 0
+  )
+)
+AND pc.parent_comment_id IS NULL
+GROUP BY p.id,u.id`
+
+		selectClause := `SELECT *,(
+    (
+      0.3 * post_likes_count + 0.5 * post_comments_count + 0.2 * post_bookmarks_count
+    ) / POWER(
+      (
+        EXTRACT(
+          EPOCH
+          FROM
+            (NOW() - post_created_at)
+        ) / 60
+      ),
+      2
+    )
+  ) AS activity_score `
+
+		query = fmt.Sprintf("%s\n FROM (%s) ORDER BY activity_score DESC\n LIMIT $2 OFFSET $3", selectClause, baseQuery)
+
+	} else {
+		return nil, errors.New("invalid sortBy")
+	}
+
+	rows, err := p.db.Queryx(query, n, limit, skip) // n is the top n communities being selected according to members count
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+
+		var postWithMetaData PostWithMetaData
+		var activityScore float64
+		var postImages []PostImage
+
+		if err := rows.Scan(
+			&postWithMetaData.Id, &postWithMetaData.PostTitle, &postWithMetaData.PostContent,
+			&postWithMetaData.PostOwnerId, &postWithMetaData.PostCommunityId, &postWithMetaData.PostCreatedAt,
+			&postWithMetaData.PostUpdatedAt, &postWithMetaData.PostOwner.Id, &postWithMetaData.PostOwner.Email,
+			&postWithMetaData.PostOwner.Password, &postWithMetaData.PostOwner.Username, &postWithMetaData.PostOwner.IsVerified,
+			&postWithMetaData.PostOwner.Role, &postWithMetaData.PostOwner.UserImage, &postWithMetaData.PostOwner.Bio,
+			&postWithMetaData.PostOwner.Location, &postWithMetaData.PostOwner.DateOfBirth, &postWithMetaData.PostOwner.VerifiedAt,
+			&postWithMetaData.PostOwner.CreatedAt, &postWithMetaData.PostOwner.UpdatedAt, &postWithMetaData.PostLikesCount,
+			&postWithMetaData.PostCommentsCount, &postWithMetaData.PostBookmarksCount, &activityScore); err != nil {
+			return nil, err
+		}
+
+		imagesQuery := `SELECT id, post_image_url, post_id 
+		FROM post_images WHERE post_id=$1`
+
+		imageRows, err := p.db.Queryx(imagesQuery, postWithMetaData.Id)
+		if err != nil {
+			return nil, err
+		}
+		defer imageRows.Close()
+
+		for imageRows.Next() {
+			var postImage PostImage
+			if err := imageRows.StructScan(&postImage); err != nil {
+				return nil, err
+			}
+			postImages = append(postImages, postImage)
+		}
+
+		postWithMetaData.PostImages = postImages
+		posts = append(posts, postWithMetaData)
+	}
+
+	return posts, nil
+}
+
+// GetExplorePostsFeedCount gets total count of posts from top N communities by member count
+func (p *PostRepo) GetPostsFeedCount(n int) (int, error) {
+
+	var totalCount int
+
+	query := `SELECT COUNT(*) FROM posts WHERE post_community_id IN (
+		SELECT community_id
+		FROM (
+			SELECT uc.community_id, COUNT(DISTINCT(uc.user_id)) AS members_count 
+			FROM user_communities AS uc
+			GROUP BY uc.community_id
+			ORDER BY members_count DESC
+			LIMIT $1 OFFSET 0
+		)
+	)`
+
+	if err := p.db.QueryRow(query, n).Scan(&totalCount); err != nil {
+		return -1, err
+	}
+
+	return totalCount, nil
+}

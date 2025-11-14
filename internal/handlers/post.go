@@ -450,7 +450,7 @@ func (h *Handler) GetCommunityPostsHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (h *Handler) GetPostsFeedHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetUserPostsFeedHandler(w http.ResponseWriter, r *http.Request) {
 
 	userId, ok := r.Context().Value(AuthUserId).(int)
 	if !ok {
@@ -528,4 +528,68 @@ func (h *Handler) GetPostsFeedHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *Handler) GetPostsFeedHandler(w http.ResponseWriter, r *http.Request) {
+
+	var page int
+	var limit int
+	var sortBy storage.SortByStr
+	var err error
+
+	if r.URL.Query().Get("page") == "" {
+		page = 1
+	} else {
+		page, err = strconv.Atoi(r.URL.Query().Get("page"))
+		if err != nil {
+			writeJSONError(w, "invalid request param page", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if r.URL.Query().Get("limit") == "" {
+		limit = 10
+	} else {
+		limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			writeJSONError(w, "invalid request param limit", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if r.URL.Query().Get("sortBy") == "" {
+		sortBy = storage.SortByRelevance
+	} else {
+		sortBy = storage.SortByStr(r.URL.Query().Get("sortBy"))
+	}
+
+	skip := page*limit - limit
+	n := 3 // post from  top 3 communities of the application
+	posts, err := h.storage.Posts.GetPostsFeed(n, skip, limit, sortBy)
+	if err != nil {
+		log.Printf("failed to get posts: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	totalPostsCount, err := h.storage.Posts.GetPostsFeedCount(n)
+	if err != nil {
+		log.Printf("failed to get posts count: %v\n", err)
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	noOfPages := int(math.Ceil(float64(totalPostsCount) / float64(limit)))
+
+	type Response struct {
+		Success   bool                       `json:"success"`
+		Posts     []storage.PostWithMetaData `json:"posts"`
+		NoOfPages int                        `json:"no_of_pages"`
+	}
+
+	if err := writeJSON(w, Response{Success: true, Posts: posts, NoOfPages: noOfPages}, http.StatusOK); err != nil {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 }

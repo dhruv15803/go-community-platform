@@ -217,26 +217,32 @@ func main() {
 
 		r.Route("/posts", func(r chi.Router) {
 
-			r.With(handler.AuthMiddleware).Get("/feed", handler.GetPostsFeedHandler)
+			r.With(handler.AuthMiddleware).Get("/feed", handler.GetUserPostsFeedHandler) // feed for logged in users consisting of posts of top communities they are a part of
+			r.Get("/explore", handler.GetPostsFeedHandler)                               // for all users (no personalized according to joined communities)
 
 			r.Group(func(r chi.Router) {
 
 				r.Route("/{postId}", func(r chi.Router) {
 
 					r.Group(func(r chi.Router) {
+
 						r.Use(handler.AuthMiddleware)
 						r.Post("/like", handler.TogglePostLikeHandler)
 						r.Post("/bookmark", handler.TogglePostBookmarkHandler)
+
 					})
 
 					r.Route("/comments", func(r chi.Router) {
+
 						r.Get("/", handler.GetPostCommentsHandler)
 						r.Get("/{commentId}/replies", handler.GetCommentRepliesHandler)
+
 						r.Group(func(r chi.Router) {
 							r.Use(handler.AuthMiddleware)
 							r.Post("/", handler.CreatePostCommentHandler)
 							r.Delete("/{commentId}", handler.DeletePostCommentHandler)
 						})
+
 					})
 				})
 			})

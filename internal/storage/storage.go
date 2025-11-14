@@ -96,6 +96,8 @@ type PostRepository interface {
 	GetCommunityPostsCount(communityId int, search string) (int, error)
 	GetUserPostsFeed(userId int, n int, skip int, limit int, sortBy SortByStr) ([]PostWithMetaData, error) //  get posts from top N user communities with most members
 	GetUserPostsFeedCount(userId int, n int) (int, error)
+	GetPostsFeed(n int, skip int, limit int, sortBy SortByStr) ([]PostWithMetaData, error)
+	GetPostsFeedCount(n int) (int, error)
 }
 
 type PostCommentRepository interface {
