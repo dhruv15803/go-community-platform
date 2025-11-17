@@ -170,3 +170,31 @@ func (u *UserRepo) CreateVerifiedUser(email string, hashedPassword string) (*Use
 
 	return &user, nil
 }
+
+func (u *UserRepo) GetUserByUsername(username string) (*User, error) {
+
+	var user User
+
+	query := `SELECT id, email, password, username, is_verified, role, user_image, bio, location, date_of_birth, verified_at, created_at, updated_at 
+	FROM users WHERE username=$1`
+
+	if err := u.db.QueryRowx(query, username).StructScan(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (u *UserRepo) UpdateUsernameById(id int, username string) (*User, error) {
+
+	var user User
+
+	query := `UPDATE users SET username=$1 WHERE id=$2
+	RETURNING id, email, password, username, is_verified, role, user_image, bio, location, date_of_birth, verified_at, created_at, updated_at`
+
+	if err := u.db.QueryRowx(query, username, id).StructScan(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

@@ -3,10 +3,11 @@ package mailer
 import (
 	"bytes"
 	"fmt"
-	"gopkg.in/gomail.v2"
 	"html/template"
 	"log"
 	"os"
+
+	"gopkg.in/gomail.v2"
 )
 
 type Mailer struct {
@@ -15,10 +16,6 @@ type Mailer struct {
 	username string
 	password string
 }
-
-var (
-	clientUrl = os.Getenv("CLIENT_URL")
-)
 
 func NewMailer(host string, port int, username string, password string) *Mailer {
 	return &Mailer{
@@ -41,12 +38,12 @@ func (m *Mailer) SendVerificationMail(fromEmail string, toEmail string, subject 
 
 	var body bytes.Buffer
 
-	log.Println(clientUrl)
+	log.Println("client url: ", os.Getenv("CLIENT_URL"))
 
 	if err := tmpl.Execute(&body, VerificationMailData{
 		Subject:         subject,
 		Email:           toEmail,
-		VerificationUrl: fmt.Sprintf("%s/activate?token=%s", clientUrl, token),
+		VerificationUrl: fmt.Sprintf("%s/activate?token=%s", os.Getenv("CLIENT_URL"), token),
 	}); err != nil {
 		return err
 	}

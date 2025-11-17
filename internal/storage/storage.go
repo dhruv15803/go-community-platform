@@ -44,6 +44,8 @@ type UserRepository interface {
 	CreateVerifiedUser(email string, hashedPassword string) (*User, error)
 	ActivateUser(hashedToken string) (*User, error)
 	GetUserById(id int) (*User, error)
+	GetUserByUsername(username string) (*User, error)
+	UpdateUsernameById(id int, username string) (*User, error)
 }
 
 type TopicRepository interface {

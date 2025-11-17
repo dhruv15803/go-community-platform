@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
-	"github.com/dhruv15803/go-community-platform/internal/s3"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/dhruv15803/go-community-platform/internal/s3"
+	"github.com/rs/cors"
 
 	"github.com/dhruv15803/go-community-platform/internal/database"
 	"github.com/dhruv15803/go-community-platform/internal/handlers"
@@ -141,11 +143,16 @@ func main() {
 
 	storage := storage.NewStorage(db)
 	handler := handlers.NewHandler(storage, rdb, s3Client)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"},
+		AllowCredentials: true,
+	})
 
 	r := chi.NewRouter()
 
+	r.Use(c.Handler)
 	r.Use(middleware.Logger)
-
 	r.Route("/api", func(r chi.Router) {
 
 		r.Get("/health", handler.HealthCheckHandler)
@@ -161,7 +168,7 @@ func main() {
 			r.Put("/activate/{token}", handler.ActivateUserHandler)
 			r.Post("/login", handler.LoginUserHandler)
 			r.With(handler.AuthMiddleware).Get("/user", handler.GetAuthUserHandler)
-
+			r.With(handler.AuthMiddleware).Get("/logout", handler.LogoutHandler)
 		})
 
 		r.Route("/topics", func(r chi.Router) {
@@ -210,9 +217,7 @@ func main() {
 					r.Delete("/{postId}", handler.DeleteCommunityPostHandler)
 					r.Post("/", handler.CreateCommunityPostHandler) // create a post in community
 				})
-
 			})
-
 		})
 
 		r.Route("/posts", func(r chi.Router) {
@@ -225,11 +230,9 @@ func main() {
 				r.Route("/{postId}", func(r chi.Router) {
 
 					r.Group(func(r chi.Router) {
-
 						r.Use(handler.AuthMiddleware)
 						r.Post("/like", handler.TogglePostLikeHandler)
 						r.Post("/bookmark", handler.TogglePostBookmarkHandler)
-
 					})
 
 					r.Route("/comments", func(r chi.Router) {
@@ -252,6 +255,12 @@ func main() {
 			r.Use(handler.AuthMiddleware)
 			r.Delete("/{commentId}", handler.DeletePostCommentHandler)
 			r.Post("/{commentId}/like", handler.ToggleCommentLikeHandler)
+		})
+
+		r.Route("/users", func(r chi.Router) {
+			// create a put handler to update authenticated user's username
+			r.Use(handler.AuthMiddleware)
+			r.Patch("/me/username", handler.UpdateUsernameHandler)
 		})
 
 	})

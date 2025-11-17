@@ -438,6 +438,58 @@ func (h *Handler) GetAuthUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+
+	userId, ok := r.Context().Value(AuthUserId).(int)
+	if !ok {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+		return
+
+	}
+
+	_, err := h.storage.Users.GetUserById(userId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, "user not found", http.StatusNotFound)
+			return
+		} else {
+			writeJSONError(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// user entry exists
+
+	var sameSiteConfig http.SameSite
+
+	if os.Getenv("GO_ENV") == "production" {
+		sameSiteConfig = http.SameSiteNoneMode
+	} else {
+		sameSiteConfig = http.SameSiteLaxMode
+	}
+
+	cookie := http.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   os.Getenv("GO_ENV") == "production",
+		SameSite: sameSiteConfig,
+		Path:     "/",
+		MaxAge:   0,
+	}
+
+	http.SetCookie(w, &cookie)
+
+	type Response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+
+	if err := writeJSON(w, Response{Success: true, Message: "logged out successfully"}, http.StatusOK); err != nil {
+		writeJSONError(w, "internal server error", http.StatusInternalServerError)
+	}
+}
+
 func generateToken(n int) string {
 
 	b := make([]byte, n)
