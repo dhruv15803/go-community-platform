@@ -3,12 +3,13 @@ package handlers
 import (
 	"database/sql"
 	"errors"
-	"github.com/dhruv15803/go-community-platform/internal/storage"
-	"github.com/go-chi/chi/v5"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/dhruv15803/go-community-platform/internal/storage"
+	"github.com/go-chi/chi/v5"
 )
 
 type CreateTopicRequest struct {
@@ -173,33 +174,48 @@ func (h *Handler) UpdateTopicHandler(w http.ResponseWriter, r *http.Request) {
 	if err := writeJSON(w, Response{Success: true, Message: "updated topic", Topic: *updatedTopic}, http.StatusOK); err != nil {
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)
 	}
-
 }
 
-// get topics by alphabetical order and get 10 or 20 at a time(page wise)
 func (h *Handler) GetTopicsHandler(w http.ResponseWriter, r *http.Request) {
 
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil {
-		writeJSONError(w, "invalid query param limit", http.StatusBadRequest)
-		return
+	var page int
+	var limit int
+	var search string
+	var err error
+
+	if r.URL.Query().Get("page") == "" {
+		page = 1
+	} else {
+		page, err = strconv.Atoi(r.URL.Query().Get("page"))
+		if err != nil {
+			writeJSONError(w, "invalid query params page", http.StatusBadRequest)
+			return
+		}
 	}
 
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil {
-		writeJSONError(w, "invalid query param page", http.StatusBadRequest)
-		return
+	if r.URL.Query().Get("limit") == "" {
+		limit = 10
+	} else {
+		limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			writeJSONError(w, "invalid query params limit", http.StatusBadRequest)
+			return
+		}
 	}
+
+	search = r.URL.Query().Get("search")
 
 	skip := page*limit - limit
 
-	topics, err := h.storage.Topics.GetTopics(skip, limit)
+	// if search === "" -> get all topics (no filtration) else filter by topic_title
+
+	topics, err := h.storage.Topics.GetTopics(skip, limit, search)
 	if err != nil {
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	totalTopicsCount, err := h.storage.Topics.GetTopicsCount()
+	totalTopicsCount, err := h.storage.Topics.GetTopicsCount(search)
 	if err != nil {
 		writeJSONError(w, "internal server error", http.StatusInternalServerError)
 		return

@@ -54,8 +54,8 @@ type TopicRepository interface {
 	GetTopicById(topicId int) (*Topic, error)
 	DeleteTopicById(topicId int) error
 	UpdateTopicById(topicId int, topicName string) (*Topic, error)
-	GetTopics(offset int, limit int) ([]Topic, error)
-	GetTopicsCount() (int, error)
+	GetTopics(offset int, limit int, search string) ([]Topic, error)
+	GetTopicsCount(search string) (int, error)
 }
 
 type TopicPreferenceRepository interface {

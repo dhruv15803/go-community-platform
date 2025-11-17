@@ -1,6 +1,10 @@
 package storage
 
-import "github.com/jmoiron/sqlx"
+import (
+	"fmt"
+
+	"github.com/jmoiron/sqlx"
+)
 
 type Topic struct {
 	Id        int    `db:"id" json:"id"`
@@ -82,14 +86,34 @@ func (t *TopicRepo) UpdateTopicById(topicId int, topicName string) (*Topic, erro
 
 }
 
-func (t *TopicRepo) GetTopics(offset int, limit int) ([]Topic, error) {
+func (t *TopicRepo) GetTopics(offset int, limit int, search string) ([]Topic, error) {
 
 	var topics []Topic
+	var args []interface{}
 
-	query := `SELECT id, topic_name 
-	FROM topics ORDER BY topic_name ASC LIMIT $1 OFFSET $2`
+	baseQuery := `SELECT id,topic_name 
+	FROM topics`
 
-	rows, err := t.db.Queryx(query, limit, offset)
+	var limitParam = 1
+	var offsetParam = 2
+
+	if search != "" {
+		whereClause := `
+		WHERE topic_name ILIKE $1`
+		baseQuery += whereClause
+
+		searchParam := "%" + search + "%"
+		args = append(args, searchParam)
+
+		limitParam = 2
+		offsetParam = 3
+	}
+
+	args = append(args, limit, offset)
+
+	query := fmt.Sprintf("%s ORDER BY topic_name ASC LIMIT $%d OFFSET $%d", baseQuery, limitParam, offsetParam)
+
+	rows, err := t.db.Queryx(query, args...)
 	if err != nil {
 		return []Topic{}, err
 	}
@@ -107,16 +131,27 @@ func (t *TopicRepo) GetTopics(offset int, limit int) ([]Topic, error) {
 	}
 
 	return topics, nil
-
 }
 
-func (t *TopicRepo) GetTopicsCount() (int, error) {
+func (t *TopicRepo) GetTopicsCount(search string) (int, error) {
 
 	var totalTopicsCount int
+	var args []interface{}
 
-	query := `SELECT COUNT(*) FROM topics`
+	baseQuery := `SELECT COUNT(*) FROM topics`
 
-	if err := t.db.QueryRowx(query).Scan(&totalTopicsCount); err != nil {
+	if search != "" {
+
+		whereClause := `
+		WHERE topic_name ILIKE $1`
+
+		baseQuery += whereClause
+
+		searchParam := "%" + search + "%"
+		args = append(args, searchParam)
+	}
+
+	if err := t.db.QueryRowx(baseQuery, args...).Scan(&totalTopicsCount); err != nil {
 		return -1, err
 	}
 
