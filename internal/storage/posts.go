@@ -530,7 +530,7 @@ GROUP BY p.id,u.id`
       ),
       2
     )
-  ) AS activity_score `
+  ) AS activity_score`
 
 		query = fmt.Sprintf("%s\n FROM (%s) ORDER BY activity_score DESC\n LIMIT $3 OFFSET $4", selectClause, baseQuery)
 
@@ -573,9 +573,11 @@ GROUP BY p.id,u.id`
 
 		for imageRows.Next() {
 			var postImage PostImage
+
 			if err := imageRows.StructScan(&postImage); err != nil {
 				return nil, err
 			}
+
 			postImages = append(postImages, postImage)
 		}
 
