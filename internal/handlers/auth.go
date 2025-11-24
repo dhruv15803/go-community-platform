@@ -491,12 +491,10 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateToken(n int) string {
-
 	b := make([]byte, n)
 	rand.Read(b)
 	plainTextToken := hex.EncodeToString(b)
 	return plainTextToken
-
 }
 
 func hashPlainTextToken(token string) string {

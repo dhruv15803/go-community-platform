@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/dhruv15803/go-community-platform/internal/mailer"
-	"github.com/dhruv15803/go-community-platform/internal/redis"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/dhruv15803/go-community-platform/internal/mailer"
+	"github.com/dhruv15803/go-community-platform/internal/redis"
+	"github.com/joho/godotenv"
 )
 
 type mailerConfig struct {
@@ -149,5 +150,4 @@ func main() {
 
 		log.Printf("Email sent successfully to %s\n", verificationMailJob.ToEmail)
 	}
-
 }

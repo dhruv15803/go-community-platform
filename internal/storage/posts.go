@@ -400,7 +400,6 @@ func (p *PostRepo) GetCommunityPosts(communityId int, skip int, limit int, sortB
 		if err != nil {
 			return nil, err
 		}
-		defer imageRows.Close()
 
 		for imageRows.Next() {
 			var postImage PostImage
@@ -411,6 +410,7 @@ func (p *PostRepo) GetCommunityPosts(communityId int, skip int, limit int, sortB
 
 			postImages = append(postImages, postImage)
 		}
+		imageRows.Close()
 
 		postWithMetaData.PostImages = postImages
 		posts = append(posts, postWithMetaData)
@@ -569,7 +569,6 @@ GROUP BY p.id,u.id`
 		if err != nil {
 			return nil, err
 		}
-		defer imageRows.Close()
 
 		for imageRows.Next() {
 			var postImage PostImage
@@ -580,6 +579,7 @@ GROUP BY p.id,u.id`
 
 			postImages = append(postImages, postImage)
 		}
+		imageRows.Close()
 
 		postWithMetaData.PostImages = postImages
 		posts = append(posts, postWithMetaData)
@@ -730,7 +730,6 @@ GROUP BY p.id,u.id`
 		if err != nil {
 			return nil, err
 		}
-		defer imageRows.Close()
 
 		for imageRows.Next() {
 			var postImage PostImage
@@ -739,6 +738,7 @@ GROUP BY p.id,u.id`
 			}
 			postImages = append(postImages, postImage)
 		}
+		imageRows.Close()
 
 		postWithMetaData.PostImages = postImages
 		posts = append(posts, postWithMetaData)

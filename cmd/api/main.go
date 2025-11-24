@@ -169,6 +169,7 @@ func main() {
 			r.Post("/login", handler.LoginUserHandler)
 			r.With(handler.AuthMiddleware).Get("/user", handler.GetAuthUserHandler)
 			r.With(handler.AuthMiddleware).Get("/logout", handler.LogoutHandler)
+
 		})
 
 		r.Route("/topics", func(r chi.Router) {
@@ -217,6 +218,7 @@ func main() {
 					r.Delete("/{postId}", handler.DeleteCommunityPostHandler)
 					r.Post("/", handler.CreateCommunityPostHandler) // create a post in community
 				})
+
 			})
 		})
 
